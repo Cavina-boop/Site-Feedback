@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>FeedbackFlow – Infototal</title>
-<!-- v1.5.0 – equipe/responsável + v1.4.0 + v1.3.0 + v1.2.0 + v1.1.0 -->
+<!-- v1.6.0 – seletor de mês na aba clientes + v1.5.0 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ===== THEME VARIABLES ===== */
@@ -475,6 +475,20 @@ body.light .resp-select{background:#f8fafc;border-color:#c8d4e3;color:#1e293b}
 .member-stat-name{font-size:11px;font-weight:600;color:var(--text2);margin:4px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .member-stat-nums{font-size:12px;color:var(--text3)}
 
+
+/* ===== SELETOR DE MÊS NA ABA CLIENTES ===== */
+.clients-month-bar{display:flex;align-items:center;gap:8px;padding:8px 0 4px;
+  border-bottom:1px solid var(--border2);margin-bottom:8px;flex-wrap:wrap}
+.clients-month-label{font-size:11px;color:var(--text2);white-space:nowrap}
+.clients-month-sel{background:var(--bg3);border:1px solid var(--border);
+  border-radius:9px;padding:6px 10px;color:var(--text);font-size:12px;
+  outline:none;cursor:pointer;font-weight:600}
+.clients-month-sel:focus{border-color:#3b82f6}
+.month-past-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+  border-radius:12px;font-size:11px;font-weight:700;
+  background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid rgba(251,146,60,0.3)}
+body.light .clients-month-sel{background:#fff;border-color:#c8d4e3;color:#1e293b}
+
 </style>
 </head>
 <body>
@@ -517,6 +531,11 @@ body.light .resp-select{background:#f8fafc;border-color:#c8d4e3;color:#1e293b}
 <!-- CLIENTES -->
 <div class="content" id="tab-clientes" style="display:none">
   <div class="clients-toolbar">
+    <div class="clients-month-bar">
+      <span class="clients-month-label">📅 Mês:</span>
+      <select class="clients-month-sel" id="clients-month-sel" onchange="onClientsMonthChange()"></select>
+      <span id="clients-past-badge" class="month-past-badge" style="display:none">📂 Mês anterior</span>
+    </div>
     <div class="search-row" style="margin-bottom:8px">
       <input class="search-input" id="search" placeholder="🔍 Buscar cliente ou empresa..."/>
       <button class="btn-add" onclick="openModal()">+</button>
@@ -871,6 +890,8 @@ function getSelectedTagsFromModal(){
 }
 
 let editingId = null, filter = 'all', sortMode = 'az';
+let clientsViewKey = null; // null = current month
+function clientsKey_live(){ return clientsViewKey || curKey(); }
 let editingTplId = null;
 
 // ---- Template helpers ----
@@ -904,9 +925,9 @@ function saveFeedbacksStore(key,obj){
   catch(e){ if(e.name==='QuotaExceededError') alert('Armazenamento local cheio!'); }
 }
 function saveClassifs(key,obj){ localStorage.setItem('ff_classif_'+key,JSON.stringify(obj)); }
-function liveStatuses(){ return getStatuses(curKey()); }
-function liveFeedbacks(){ return getFeedbacks(curKey()); }
-function liveClassifs(){ return getClassifs(curKey()); }
+function liveStatuses(){ return getStatuses(clientsKey_live()); }
+function liveFeedbacks(){ return getFeedbacks(clientsKey_live()); }
+function liveClassifs(){ return getClassifs(clientsKey_live()); }
 
 function allMonthKeys(){
   const keys=new Set([curKey()]);
@@ -956,7 +977,7 @@ function switchTab(tab){
     document.getElementById('tab-'+t).style.display=t===tab?'block':'none';
     document.querySelectorAll('.tab-btn')[i].classList.toggle('active',t===tab);
   });
-  if(tab==='clientes'){clients=loadClients();renderTagFilters();renderMemberFilters();renderClients();}
+  if(tab==='clientes'){populateClientsMonthSelect();clients=loadClients(clientsViewKey||undefined);renderTagFilters();renderMemberFilters();renderClients();}
   else if(batchMode){batchMode=false;batchSelected.clear();document.getElementById('btn-batch-mode').classList.remove('active');document.getElementById('btn-batch-mode').textContent='☑️ Selecionar';document.getElementById('batch-bar').classList.remove('open');}
   if(tab==='mensagem') renderMsg();
   if(tab==='historico'){populateMonthSelect();renderHistorico();}
@@ -1175,7 +1196,7 @@ function renderClients(){
     const val=ta.value.trim();
     if(val && val!==(fb_pre[id]||'')){
       fb_pre[id]=val;
-      saveFeedbacksStore(curKey(),fb_pre);
+      saveFeedbacksStore(clientsKey_live(),fb_pre);
     }
   });
   const st=liveStatuses(),fb=liveFeedbacks(),cl=liveClassifs();
@@ -1259,14 +1280,14 @@ function renderClients(){
 
 function onWA(id){
   const st=liveStatuses();
-  if(!st[id]){st[id]='sent';saveStatuses(curKey(),st);
+  if(!st[id]){st[id]='sent';
     addLog(id,'sent','Mensagem enviada via WhatsApp');
     renderClients();}
 }
 function setStatus(id,val){
   const st=liveStatuses();
   if(val===null) delete st[id]; else st[id]=val;
-  saveStatuses(curKey(),st);
+  saveStatuses(clientsKey_live(),st);
   if(val==='sent'){addLog(id,'sent','Marcado como enviado');showToast('Marcado como enviado! 📤');}
   if(val==='done'){addLog(id,'done','Feedback recebido');showToast('Feedback recebido! ✅');}
   if(val===null){addLog(id,'reset','Status resetado');}
@@ -1275,7 +1296,7 @@ function setStatus(id,val){
 function setClassif(id,val){
   const cl=liveClassifs();
   if(cl[id]===val) delete cl[id]; else cl[id]=val;
-  saveClassifs(curKey(),cl);
+  saveClassifs(clientsKey_live(),cl);
   const labels={pos:'Ótimo ✅',neu:'Regular ⚠️',neg:'Ruim ❌'};
   if(cl[id]){addLog(id,'classif','Classificado: '+labels[val]);showToast('Feedback classificado como '+labels[val]);}
   renderClients();
@@ -1285,7 +1306,7 @@ function removeClient(id){
   if(!c) return;
   showConfirm('Remover <strong>'+esc(c.nome)+'</strong>?', 'Isso também apagará todos os dados deste cliente.', function(){
     clients = clients.filter(x=>x.id!==id);
-    saveClientsStore(clients);
+    saveClientsStore(clients, clientsViewKey||undefined);
     // remove status/feedback/classif for this client in all months
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
@@ -1309,7 +1330,7 @@ function onFbChange(id){
 function saveFeedback(id){
   const fb=liveFeedbacks();
   fb[id]=document.getElementById('fb-'+id).value;
-  saveFeedbacksStore(curKey(),fb);
+  saveFeedbacksStore(clientsKey_live(),fb);
   addLog(id,'feedback','Anotação salva');
   renderClients();showToast('Anotação salva!');
 }
@@ -1318,8 +1339,8 @@ function deleteFeedback(id){
     const fb=liveFeedbacks();
     const cl=liveClassifs();
     delete fb[id]; delete cl[id];
-    saveFeedbacksStore(curKey(),fb);
-    saveClassifs(curKey(),cl);
+    saveFeedbacksStore(clientsKey_live(),fb);
+    saveClassifs(clientsKey_live(),cl);
     addLog(id,'del_fb','Anotação apagada');
     renderClients(); renderDashboard(); showToast('Anotação apagada!');
   });
@@ -1364,7 +1385,7 @@ function saveClient(){
     if(respVal){const mNew=memberById(respVal);if(mNew)addLog(newId,'resp','Responsável: '+mNew.name);}
     showToast('Cliente adicionado!');
   }
-  saveClientsStore(clients);
+  saveClientsStore(clients, clientsViewKey||undefined);
   closeModal();renderClients();
 }
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
@@ -1885,7 +1906,7 @@ function batchMarkSent(){
     }
   });
   if(changed > 0){
-    saveStatuses(curKey(), st);
+    saveStatuses(clientsKey_live(), st);
     showToast('📤 ' + changed + ' cliente' + (changed > 1 ? 's marcados' : ' marcado') + ' como enviado!');
   }
   batchSelected.clear();
@@ -2079,12 +2100,43 @@ function deleteTeamMember(){
 }
 
 
+
+// ===== SELETOR DE MÊS NA ABA CLIENTES =====
+function populateClientsMonthSelect(){
+  var sel = document.getElementById('clients-month-sel');
+  if(!sel) return;
+  var keys = allMonthKeys();
+  var cur = clientsViewKey || curKey();
+  sel.innerHTML = keys.map(function(k){
+    var label = getMonthLabel(k);
+    var isCur = (k === curKey());
+    return '<option value="'+k+'"'+(k===cur?' selected':'')+'>'+label+(isCur?' (atual)':'')+'</option>';
+  }).join('');
+  // show/hide past badge
+  var badge = document.getElementById('clients-past-badge');
+  var addBtn = document.querySelector('#tab-clientes .btn-add');
+  var isPast = clientsViewKey && clientsViewKey !== curKey();
+  if(badge) badge.style.display = isPast ? 'inline-flex' : 'none';
+  if(addBtn) addBtn.style.display = isPast ? 'none' : '';
+}
+
+function onClientsMonthChange(){
+  var sel = document.getElementById('clients-month-sel');
+  if(!sel) return;
+  var val = sel.value;
+  clientsViewKey = (val === curKey()) ? null : val;
+  clients = loadClients(clientsViewKey||undefined);
+  populateClientsMonthSelect();
+  renderClients();
+}
+
 // ===== INIT =====
 initTheme();
 updateHeaderStats();
 renderDashboard();
 renderTagFilters();
 renderMemberFilters();
+populateClientsMonthSelect();
 </script>
 
 <!-- BATCH BAR -->
