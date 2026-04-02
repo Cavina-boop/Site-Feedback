@@ -961,11 +961,11 @@ function showToast(msg){
 }
 
 function updateHeaderStats(){
-  const st=liveStatuses();
-  clients=loadClients();
-  const total=clients.length;
-  const sent=clients.filter(c=>st[c.id]==='sent'||st[c.id]==='done').length;
-  const done=clients.filter(c=>st[c.id]==='done').length;
+  const st=getStatuses(curKey());
+  const _hClients=loadClients();
+  const total=_hClients.length;
+  const sent=_hClients.filter(c=>st[c.id]==='sent'||st[c.id]==='done').length;
+  const done=_hClients.filter(c=>st[c.id]==='done').length;
   document.getElementById('stat-sent').textContent=sent;
   document.getElementById('stat-done').textContent=done;
   document.getElementById('progress-bar').style.width=(total?Math.round(done/total*100):0)+'%';
@@ -1635,7 +1635,7 @@ function importBackup(event){
       if(!backup.data) throw new Error('Formato inválido');
       if(!confirm('Isso vai substituir todos os dados atuais. Continuar?')) return;
       Object.keys(backup.data).forEach(k=>localStorage.setItem(k,backup.data[k]));
-      clients=loadClients();
+      clients=loadClients(clientsViewKey||undefined);
       message=getActiveTemplate().text;
       updateHeaderStats();renderClients();renderDashboard();
       showToast('Backup restaurado com sucesso! ✅');
