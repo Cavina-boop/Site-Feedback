@@ -1041,7 +1041,8 @@ function goToClient(id){
 // ===== DASHBOARD =====
 function renderDashboard(){
   const key=curKey();
-  const {st,fb,cl,total,sent,done,pend}=getHistData(key);
+  const {st,fb,cl,total,sent,done,pend,mClients}=getHistData(key);
+  const dashClients=mClients;
   const hour=new Date().getHours();
   const greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite';
 
@@ -1060,9 +1061,9 @@ function renderDashboard(){
   }
 
   // Satisfação
-  const pos=clients.filter(c=>cl[c.id]==='pos').length;
-  const neu=clients.filter(c=>cl[c.id]==='neu').length;
-  const neg=clients.filter(c=>cl[c.id]==='neg').length;
+  const pos=dashClients.filter(c=>cl[c.id]==='pos').length;
+  const neu=dashClients.filter(c=>cl[c.id]==='neu').length;
+  const neg=dashClients.filter(c=>cl[c.id]==='neg').length;
   const totalCl=pos+neu+neg;
   const satScore=totalCl?Math.round((pos*100+neu*50)/totalCl):null;
   const satColor=satScore===null?'#888':satScore>=70?'#4ade80':satScore>=40?'#facc15':'#f87171';
@@ -1099,7 +1100,7 @@ function renderDashboard(){
     '<text x="56" y="66" text-anchor="middle" fill="#888" font-size="9">concluido</text></svg>';
 
   // Pendentes
-  const pendClients=clients.filter(c=>!st[c.id]).slice(0,6);
+  const pendClients=dashClients.filter(c=>!st[c.id]).slice(0,6);
   const pendHTML=pendClients.length
     ?pendClients.map(c=>'<div class="pend-row">'+
         '<div class="pend-row-info"><div class="pend-name">'+esc(c.nome)+'</div>'+(c.empresa?'<div class="pend-emp">'+esc(c.empresa)+'</div>':'')+
@@ -1124,7 +1125,7 @@ function renderDashboard(){
   let memberStatsHTML='';
   if(teamMembers.length){
     const mStats=teamMembers.map(m=>{
-      const mC=clients.filter(c=>c.responsavel===m.id);
+      const mC=dashClients.filter(c=>c.responsavel===m.id);
       return {m,total:mC.length,done:mC.filter(c=>st[c.id]==='done').length};
     }).filter(x=>x.total>0);
     if(mStats.length) memberStatsHTML=
