@@ -1692,10 +1692,16 @@ var LOG_ICONS = {
   feedback: '💬', del_fb:   '🗑️', resp: '👤'
 };
 
+// Types that only record once (first occurrence wins)
+var LOG_ONCE  = { sent:1, done:1, classif:1, feedback:1, resp:1 };
+// Types never recorded
+var LOG_NEVER = { edited:1, reset:1, del_fb:1 };
+
 function addLog(clientId, type, label){
+  if(LOG_NEVER[type]) return;
   var log = loadLog(clientId);
+  if(LOG_ONCE[type] && log.some(function(e){ return e.type===type; })) return;
   log.push({ ts: new Date().toISOString(), type: type, label: label });
-  // keep last 50 entries
   if(log.length > 50) log = log.slice(log.length - 50);
   saveLog(clientId, log);
 }
