@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>FeedbackFlow – Infototal</title>
-<!-- v1.6.0 – seletor de mês na aba clientes + v1.5.0 -->
+<!-- v1.7.0 – incubadora 6 meses + v1.6.0 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ===== THEME VARIABLES ===== */
@@ -489,6 +489,18 @@ body.light .resp-select{background:#f8fafc;border-color:#c8d4e3;color:#1e293b}
   background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid rgba(251,146,60,0.3)}
 body.light .clients-month-sel{background:#fff;border-color:#c8d4e3;color:#1e293b}
 
+
+/* ===== INCUBADORA ===== */
+.incub-bar-wrap{margin-top:8px;padding:8px 10px;background:var(--bg4);border-radius:8px;border:1px solid var(--border2)}
+.incub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.incub-title{font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px}
+.incub-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px}
+.incub-badge.active{background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid rgba(251,146,60,0.3)}
+.incub-badge.done{background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3)}
+.incub-track{height:6px;background:var(--bg5);border-radius:3px;overflow:hidden;margin:4px 0}
+.incub-fill{height:6px;border-radius:3px;transition:width .5s}
+.incub-dates{display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-top:2px}
+
 </style>
 </head>
 <body>
@@ -649,6 +661,8 @@ body.light .clients-month-sel{background:#fff;border-color:#c8d4e3;color:#1e293b
     <input class="form-input" id="f-empresa" placeholder="Ex: Restaurante Bom Gosto"/>
     <div class="form-label">Telefone (WhatsApp) *</div>
     <input class="form-input" id="f-tel" placeholder="Ex: 18999999999"/>
+    <div class="form-label">Data de implantação</div>
+    <input class="form-input" id="f-implantado" type="date" style="margin-bottom:14px"/>
     <div class="form-label" id="resp-label" style="display:none">Responsável</div>
     <select class="resp-select" id="f-resp" style="display:none"></select>
     <div class="form-label" id="tag-selector-label" style="display:none">Etiquetas</div>
@@ -1258,6 +1272,7 @@ function renderClients(){
         '</div>'+
       '</div>'+
       renderClientTagChips(c)+
+      renderIncubadora(c)+
       '<div class="card-buttons">'+
         '<a class="btn-whatsapp" href="'+buildLink(c.telefone,c.nome)+'" target="_blank" onclick="onWA(\''+c.id+'\')">📲 Enviar no WhatsApp</a>'+
         stageBtn+
@@ -1355,6 +1370,7 @@ function openModal(id){
   document.getElementById('f-nome').value=c?c.nome:'';
   document.getElementById('f-empresa').value=c?(c.empresa||''):'';
   document.getElementById('f-tel').value=c?c.telefone:'';
+  document.getElementById('f-implantado').value=c&&c.implantadoEm?c.implantadoEm.substring(0,10):new Date().toISOString().substring(0,10);
   renderRespSelector(id||null);
   renderTagSelector(id||null);
   document.getElementById('modal').classList.add('open');
@@ -1370,10 +1386,11 @@ function saveClient(){
   if(digitos.length<10||digitos.length>13){alert('Telefone inválido. Use o formato: 18999999999 (DDD + número)');return;}
   const selectedTags=getSelectedTagsFromModal();
   const respVal=document.getElementById('f-resp').value||null;
+  const implantadoEm=document.getElementById('f-implantado').value||new Date().toISOString().substring(0,10);
   const newId=Date.now().toString();
   if(editingId){
     const prevC=clients.find(c=>c.id===editingId);
-    clients=clients.map(c=>c.id===editingId?{...c,nome,empresa,telefone,tags:selectedTags,responsavel:respVal}:c);
+    clients=clients.map(c=>c.id===editingId?{...c,nome,empresa,telefone,tags:selectedTags,responsavel:respVal,implantadoEm:implantadoEm}:c);
     addLog(editingId,'edited','Cadastro editado');
     if(prevC&&prevC.responsavel!==respVal){
       const mResp=respVal?memberById(respVal):null;
@@ -1381,7 +1398,7 @@ function saveClient(){
     }
     showToast('Cliente atualizado!');
   } else {
-    clients.push({id:newId,nome,empresa,telefone,tags:selectedTags,responsavel:respVal});
+    clients.push({id:newId,nome,empresa,telefone,tags:selectedTags,responsavel:respVal,implantadoEm:implantadoEm});
     addLog(newId,'created','Cliente cadastrado');
     if(respVal){const mNew=memberById(respVal);if(mNew)addLog(newId,'resp','Responsável: '+mNew.name);}
     showToast('Cliente adicionado!');
@@ -2129,6 +2146,54 @@ function onClientsMonthChange(){
   clients = loadClients(clientsViewKey||undefined);
   populateClientsMonthSelect();
   renderClients();
+}
+
+
+// ===== INCUBADORA =====
+var INCUB_MONTHS = 6;
+
+function incubInfo(c){
+  if(!c.implantadoEm) return null;
+  var start = new Date(c.implantadoEm + 'T00:00:00');
+  var now   = new Date();
+  var elapsed = (now.getFullYear() - start.getFullYear()) * 12
+              + (now.getMonth()    - start.getMonth())
+              + (now.getDate()     - start.getDate()) / 30;
+  elapsed = Math.max(0, elapsed);
+  var pct  = Math.min(100, Math.round(elapsed / INCUB_MONTHS * 100));
+  var done = elapsed >= INCUB_MONTHS;
+  var endDate = new Date(start);
+  endDate.setMonth(endDate.getMonth() + INCUB_MONTHS);
+  var diffDays = Math.ceil((endDate - now) / 86400000);
+  return {start, endDate, elapsed, pct, done, diffDays};
+}
+
+function fmtDate(d){
+  return String(d.getDate()).padStart(2,'0') + '/'
+       + String(d.getMonth()+1).padStart(2,'0') + '/'
+       + d.getFullYear();
+}
+
+function renderIncubadora(c){
+  var info = incubInfo(c);
+  if(!info) return '';
+  var color = info.done ? '#4ade80' : info.pct >= 67 ? '#facc15' : '#fb923c';
+  var monthsText = info.done ? 'Concluída'
+    : (Math.floor(info.elapsed) + ' de ' + INCUB_MONTHS + ' meses');
+  var remainText = info.done ? ('Graduado em ' + fmtDate(info.endDate))
+    : (info.diffDays > 0 ? 'Faltam ' + info.diffDays + ' dias' : 'Prazo encerrado');
+  return '<div class="incub-bar-wrap">'
+    + '<div class="incub-header">'
+    +   '<span class="incub-title">🥚 Incubadora · ' + monthsText + '</span>'
+    +   '<span class="incub-badge ' + (info.done ? 'done' : 'active') + '">'
+    +     (info.done ? '✅ Graduado' : info.pct + '%') + '</span>'
+    + '</div>'
+    + '<div class="incub-track"><div class="incub-fill" style="width:' + info.pct + '%;background:' + color + '"></div></div>'
+    + '<div class="incub-dates">'
+    +   '<span>Implantação: ' + fmtDate(info.start) + '</span>'
+    +   '<span>' + remainText + '</span>'
+    + '</div>'
+    + '</div>';
 }
 
 // ===== INIT =====
